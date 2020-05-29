@@ -189,10 +189,29 @@ def call_servo(examples, serving_bundle):
     # tf.compat.v1 API used here to convert tf.example into proto. This
     # utility file is bundled in the witwidget pip package which has a dep
     # on TensorFlow.
-    request.inputs[serving_bundle.predict_input_tensor].CopyFrom(
-      tf.compat.v1.make_tensor_proto(
-        values=[ex.SerializeToString() for ex in examples],
-        dtype=types_pb2.DT_STRING))
+    predict_input_tensor_list = serving_bundle.predict_input_tensor.split(",")
+    if len(examples)>0:
+      for key in predict_input_tensor_list:
+        dtype=types_pb2.DT_STRING
+        for value in examples[0].features.feature.items():
+          if key in str(value[0]):
+            if "int64" in str(value[1]):
+              dtype=types_pb2.DT_INT64
+            elif "float" in str(value[1]):
+              dtype=types_pb2.DT_FLOAT
+            break
+        values = []
+        for ex in examples:
+          if dtype ==  types_pb2.DT_FLOAT:
+            values += ex.features.feature[key].float_list.value
+          elif dtype == types_pb2.DT_INT64:
+            values += ex.features.feature[key].int64_list.value
+        request.inputs[key].CopyFrom(
+          tf.compat.v1.make_tensor_proto(
+          values=values,
+          dtype=dtype))
+    else:
+      print("examples length is %d"%len(examples))
   else:
     request.input.example_list.examples.extend(examples)
 
